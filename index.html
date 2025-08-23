@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ұлт азаттық көтеріліс — Интерактивті карта және ойындар</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Unbounded:wght@600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <style>
+    :root{
+      --bg:#0b0f18; --card:#0f1422; --muted:#97a1b1; --acc:#18a999; --acc2:#7c5cff; --ring:#48f5c5;
+      --shadow: 0 20px 50px rgba(0,0,0,.45);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;}
+    body{
+      margin:0; color:#e9eef8; background: radial-gradient(1200px 600px at 10% -10%, rgba(124,92,255,.15), transparent),
+                   radial-gradient(900px 500px at 90% -20%, rgba(24,169,153,.18), transparent),
+                   linear-gradient(180deg, #0b0f18 0%, #0a0d16 100%);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    header{
+      position:sticky; top:0; z-index:40; backdrop-filter: blur(10px);
+      background: rgba(11,15,24,.65); border-bottom:1px solid rgba(255,255,255,.06);
+    }
+    .container{max-width:1200px; margin:0 auto; padding: clamp(14px, 2vw, 24px);}
+    .title{
+      display:flex; align-items:center; gap:18px; padding:10px 0;
+    }
+    .logo{width:54px; height:54px; display:grid; place-items:center; border-radius:18px; background:linear-gradient(135deg,var(--acc2),var(--acc)); box-shadow: var(--shadow)}
+    .logo span{font-family: Unbounded, Inter; font-weight:800; font-size:22px}
+    h1{font-family: Unbounded, Inter; font-weight:800; letter-spacing:.3px; margin:0; font-size: clamp(22px, 3.5vw, 44px)}
+    .tagline{color:var(--muted); margin-top:6px}
+
+    .hero{
+      display:grid; grid-template-columns: 1.2fr .8fr; gap:24px; align-items: stretch; margin-top:22px;
+    }
+    @media(max-width:980px){.hero{grid-template-columns:1fr;}}
+
+    .card{background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.07); border-radius:20px; box-shadow: var(--shadow); overflow:hidden}
+    .card .head{display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid rgba(255,255,255,.07);}
+    .card .head h2{margin:0; font-size:18px; letter-spacing:.2px}
+    .card .body{padding:18px}
+
+    #map{height:520px; border-radius:18px;}
+
+    .legend{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
+    .pill{padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.12); color:#dbe7ff; font-size:12px; background: rgba(255,255,255,.05)}
+
+    .timeline{display:grid; gap:14px; max-height:520px; overflow:auto; padding-right:6px}
+    .event{padding:14px; background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:14px; position:relative}
+    .event::before{content:""; position:absolute; left:-6px; top:18px; width:10px; height:10px; background:var(--acc2); border-radius:50%; box-shadow:0 0 0 6px rgba(124,92,255,.25)}
+    .event h3{margin:.2rem 0 .4rem; font-size:16px}
+    .event .years{font-size:12px; color:var(--muted)}
+
+    .section{margin:36px auto;}
+    .section h2{font-family: Unbounded; font-size: clamp(22px, 2.5vw, 30px)}
+    .grid{display:grid; grid-template-columns: repeat(3, 1fr); gap:18px}
+    @media(max-width:1000px){.grid{grid-template-columns:1fr 1fr}}
+    @media(max-width:720px){.grid{grid-template-columns:1fr}}
+
+    .topic{padding:18px; border-radius:16px; border:1px solid rgba(255,255,255,.08); background: radial-gradient(400px 200px at 20% -10%, rgba(124,92,255,.18), transparent), rgba(255,255,255,.03);}
+    .topic h3{margin:.4rem 0 .6rem}
+    .topic p{margin:.2rem 0; color:#dfe7fb; line-height:1.6}
+    .badge{display:inline-block; font-size:11px; color:#c6d2ea; padding:3px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.1); margin-right:8px}
+
+    /* Modal & Game */
+    #map {
+  height: 520px;
+  border-radius: 18px;
+  position: relative;
+  z-index: 1;   /* карта ең төменгі қабатта */
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.55);
+  z-index: 9999;   /* картадан жоғары */
+}
+.modal.active {
+  display: flex;
+}
+
+    .modal .gamewrap{width:min(980px, 92vw); background:var(--card); border:1px solid rgba(255,255,255,.08); border-radius:18px; overflow:hidden; box-shadow: var(--shadow)}
+    .modal .bar{display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.08)}
+    .modal .bar .title{gap:10px}
+    .modal .bar .title small{display:block; color:var(--muted)}
+    .closeBtn{appearance:none; border:none; background: rgba(255,255,255,.07); color:#fff; padding:8px 12px; border-radius:10px; cursor:pointer}
+    canvas{display:block; width:100%; height:520px; background: linear-gradient(180deg, #21426e, #0d1a2b);}    
+    .panel{padding:12px 16px; display:flex; gap:8px; align-items:center; justify-content:space-between; border-top:1px solid rgba(255,255,255,.08)}
+    .panel .btn{appearance:none; border:none; background:linear-gradient(135deg,var(--acc2),var(--acc)); color:#04111b; font-weight:800; padding:10px 14px; border-radius:12px; cursor:pointer}
+    .panel .hint{color:#c5cee2; font-size:13px}
+
+    /* Scroll reveal */
+    .reveal{opacity:0; transform: translateY(14px); transition: .6s ease}
+    .reveal.visible{opacity:1; transform:none}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="title">
+        <div class="logo"><span>ҰАҚ</span></div>
+        <div>
+          <h1>Ұлт азаттық көтеріліс</h1>
+          <div class="tagline">XVIII–XX ғасырлардағы Қазақстандағы ұлт-азаттық қозғалыстардың интерактивті картасы мен мини-ойындары</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="card">
+        <div class="head"><h2>Карта — көтерілістер хронологиясы</h2><div class="pill">Нүктені басыңыз — ойын іске қосылады</div></div>
+        <div class="body">
+          <div id="map" aria-label="Қазақстан картасы"></div>
+          <div class="legend">
+            <div class="pill">🟣 XVIII–XIX ғ.</div>
+            <div class="pill">🟢 1916 ж.</div>
+            <div class="pill">🟡 1929–1931 жж.</div>
+            <div class="pill">🔴 Кеңестік кезең (1958–1989)</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="head"><h2>Тез шолу</h2><div class="pill">Барлығы — 26 оқиға</div></div>
+        <div class="body">
+          <div class="timeline" id="timeline"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="reveal">Көтерілістер туралы</h2>
+      <div class="grid" id="topics"></div>
+    </section>
+  </main>
+
+  <!-- Modal with Canvas Game -->
+  <div class="modal" id="gameModal" aria-hidden="true" role="dialog">
+    <div class="gamewrap">
+      <div class="bar">
+        <div class="title">
+          <div class="logo" style="width:38px;height:38px;border-radius:12px"><span style="font-size:14px">ҰАҚ</span></div>
+          <div>
+            <strong id="gameTitle">Ойын</strong>
+            <small id="gameSubtitle">Тарихи сахна</small>
+          </div>
+        </div>
+        <button class="closeBtn" id="closeGame">Жабу ⨉</button>
+      </div>
+      <canvas id="gameCanvas" width="980" height="520"></canvas>
+      <div class="panel">
+        <button class="btn" id="startGame">⚔️ Шайқас басталсын</button>
+        <div class="hint" id="gameHint">🎮 Пернелер: ← → (жүру), ↑ (секіру), A (қол), S (қылыш), D (комбо)</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+  // ==== ДЕРЕКҚОР (қысқаша сипаттамалар, координаттар, ойын параметрлері) ====
+  const EVENTS = [
+    {id:3, years:"1783–1797", title:"Сырым Датұлы бастаған қозғалыс", place:"Орал өңірі, Кіші жүз", lat:51.22, lng:51.38, color:"#9b6bff", faction:"imperial", cavalry:true, text:`Сырым Датұлы бастаған қозғалыс Кіші жүздегі отарлық қысымға, салық пен старшындар озбырлығына қарсы туды. Игельстром реформасынан кейін ру ішіндегі қайшылықтар күшейіп, көтеріліс жалпыұлттық сипат алды. Көтеріліс барысында Кіші жүз хандарының саясатына да қарсылық көрінді. Тарихи маңызы — қазақ қоғамындағы отаршылдыққа қарсы күрес дәстүрін күшейтті.`, youtube: "https://www.youtube.com/embed/k2gw5C4cjgM"},
+    {id:4, years:"1820–1830", title:"Саржан Қасымұлы, Жоламан Тіленшіұлы, Арынғазы Әбілғазыұлы қозғалыстары", place:"Орта және Кіші жүз аймақтары", lat:50.41, lng:80.23, color:"#9b6bff", faction:"imperial", cavalry:true, text:`Саржан Қасымұлы (Орта жүз), Жоламан Тіленшіұлы (Кіші жүз) және Арынғазы сұлтан бастаған қозғалыстар 1820–1830 жж. патша әкімшілігінің бекіністер салуы мен жерге шектеулеріне қарсы өрбіді. Қозғалыстардың ортақ мақсаты — дәстүрлі билік негіздерін қорғау, жерді сақтап қалу.`, youtube: "https://www.youtube.com/embed/m0rwEE02rzM"},
+    {id:5, years:"1836–1838", title:"Исатай Тайманұлы мен Махамбет Өтемісұлы көтерілісі", place:"Бөкей Ордасы, Нарын құмы", lat:47.10, lng:51.90, color:"#9b6bff", faction:"imperial", cavalry:true, text:`Исатай мен Махамбет бастаған көтеріліс Жәңгір хан мен патша өкіметінің озбыр саясатына қарсы туды. Бөкей Ордасындағы әлеуметтік теңсіздік, жер тарылуы басты себеп болды. Көтерілісшілер хан ордасына қауіп төндіріп, жазалаушы отрядтармен шайқасты. Исатай 1838 ж. Ақбұлақ түбінде қаза тапты. Көтерілістің рухы халық жадында еркіндік символына айналды.`, youtube: "https://www.youtube.com/embed/3jw9kN_3WoU"},
+    {id:6, years:"1837–1847", title:"Кенесары Қасымұлы қозғалысы", place:"Ақмола – Көкше – Түркістан – Қырғызбауыры", lat:51.16, lng:71.47, color:"#9b6bff", faction:"imperial", cavalry:true, text:`Хан Кене қозғалысы — қазақ жерін ресейлік отарлықтан азат етуге бағытталған ең ірі қозғалыстардың бірі. 1838 ж. Ақмола бекінісі өртелді. Кейін Қоқанмен, соңында қырғыз манаптарымен соғыстар жүрді. 1847 ж. Майтөбе маңында последняя шайқаста Кенесары қаза тапты. Көтеріліс хандық бірлікті жаңғырту идеясын көтерді.`, youtube: "https://www.youtube.com/embed/5CcsrLoKpm8"},
+    {id:7, years:"1856–1860", title:"Жанкожа Нұрмұхамедұлы көтерілісі", place:"Сыр бойы, Қазалы – Арал өңірі", lat:45.76, lng:62.15, color:"#9b6bff", faction:"imperial", cavalry:false, text:`Жанкожа батыр Арал–Сыр бойында Қоқан, Хиуа және патша әскерлерінің қысымына қарсы күресті. 1856–1857 жж. қақтығыстарда халық жасақтары айрықша ерлік көрсетті, бірақ тұрақты әскерге қарсы тұру қиын болды. Көтеріліс жеңілгенімен, Сыр өңіріндегі отарлыққа қарсылықтың символына айналды.`, youtube: "https://www.youtube.com/embed/-T13o3s5EJI"},
+    {id:8, years:"1847–1858", title:"Есет батыр Көтібарұлы көтерілісі", place:"Ырғыз – Арал маңы, Кіші жүз", lat:48.62, lng:61.27, color:"#9b6bff", faction:"imperial", cavalry:true, text:`Есет батыр бастаған қозғалыс Кіші жүздің батыс-орта аймақтарында өрбіді. Көтеріліс барысында патша әкімшілігімен келіссөздер де жүрді. Ақыры Есет Орынборда патша билігін мойындауға мәжбүр болды, дегенмен талаптарының бір бөлігі ескерілді. Жер, салық, руаралық әділетсіздік мәселелері көтерілістің өзегінде болды.`, youtube: "https://www.youtube.com/embed/kZpJMa7ryhI"},
+    {id:9, years:"1868–1870", title:"Орал, Торғай және Маңғыстаудағы азаттық күресі", place:"Орал – Торғай – Маңғыстау", lat:49.6, lng:63.5, color:"#9b6bff", faction:"imperial", cavalry:false, text:`1868–1869 жж. Орал мен Торғай облыстарында, 1870 ж. Маңғыстауда патшалық реформаларға қарсы халық наразылығы бұрқ ете түсті. Маңғыстауда Иса Тіленбайұлы мен Досан Тәжіұлы аты шықты, подполковник Рукиннің отряды талқандалды. Алайда жазалаушы күштердің басымдығы қозғалысты басты.`,youtube: "https://www.youtube.com/embed/DPevAmwTkJA"},
+    {id:10, years:"1916", title:"1916 жылғы ұлт-азаттық қозғалыс", place:"Торғай, Жетісу және өзге өңірлер", lat:45.02, lng:78.37, color:"#35d07f", faction:"imperial", cavalry:false, text:`1916 жылғы маусым жарлығы (майдан жұмыстарына «бұратаналарды» алу) тұтандырған бүкілқазақтық көтеріліс Торғайда Амангелді Иманов, Жетісуда Б. Әшекеев, Ж. Мәмбетов, Ұ. Саурықов сияқты жетекшілердің төңірегіне топтасты. Ауыр жазалау экспедициялары мен босқыншылық қайғысы — қозғалыстың қасіретті салдары.`, youtube: "https://www.youtube.com/embed/1VuoyQpBLeY"},
+    {id:11, years:"ХХ ғ. басы", title:"Алаш зиялылары, Мемлекеттік Думадағы қазақтар", place:"Семей – Орынбор – Петербор", lat:50.41, lng:80.23, color:"#35b7ff", faction:"civic", cavalry:false, text:`Алаш қайраткерлері — Ә. Бөкейхан, А. Байтұрсынұлы, М. Дулатұлы, М. Тынышпайұлы және басқалар — ұлттық-демократиялық қозғалыстың көшбасшылары болды. Олар білім мен реформаны қолдап, парламенттік алаңдарда қазақ мүддесін қорғады.`, youtube: "https://www.youtube.com/embed/2abDeGVipqg"},
+    {id:12, years:"1917–1918", title:"Түркістан (Қоқан) автономиясы — М. Шоқай, М. Тынышбаев", place:"Ташкент – Қоқан", lat:41.31, lng:69.28, color:"#35b7ff", faction:"civic", cavalry:false, text:`Түркістан автономиясы — аймақ халықтарының өзін-өзі басқару талпынысы. Премьері ретінде М. Тынышбаев, кейін М. Шоқай еңбек етті. Кеңес билігі күшпен таратты, бірақ еркіндік идеясы сақталды.`,youtube: "https://www.youtube.com/embed/Eab3Mgrbjko"},
+
+    // 1929–1931 жж. шаруалар көтерілістері
+    {id:13, years:"1929–1931", title:"Шаруалар көтерілістері (ұжымдастыруға қарсы)", place:"Қазақстанның әр аймағы", lat:47.88, lng:67.71, color:"#ffd34d", faction:"soviet", cavalry:false, text:`Ұжымдастыру мен тәркілеуге қарсы ондаған ошақ пайда болды. Әлеуметтік қысым, мал-мүлікті тартып алу, ашаршылық қаупі халықты қарсылыққа итермеледі.`, youtube: "https://www.youtube.com/embed/wbt0F4NrTcg"},
+    {id:14, years:"1930", title:"Қарақұм көтерілісі", place:"Қарақұм, Сырдария округі", lat:44.90, lng:65.50, color:"#ffd34d", faction:"soviet", cavalry:false, text:`Сырдарияның Қарақұм өңірінде қарулы қарсылық орнады. Көтеріліске хан сайлау әрекеттері болды, кейін жазалау отрядтары басып-жаншыды.`, youtube: "https://www.youtube.com/embed/mrZKgKRx-1g"},
+    {id:15, years:"1930", title:"Сарбаздар (Солдат) көтерілісі", place:"Шығыс аймақтар (жалпы атау)", lat:49.95, lng:82.61, color:"#ffd34d", faction:"soviet", cavalry:false, text:`Жергілікті жасақтар мен ауылдар бірігіп, салық пен тәркілеуге қарсылық білдірді. Көтерілісшілер саны жүздеген–мыңға дейін жеткен кезеңдер болды.`, youtube: "https://www.youtube.com/embed/VCboftNNt6w"},
+    {id:16, years:"1930–1931", title:"Жетісу көтерілісі", place:"Жетісу, Алатау баурайы", lat:43.24, lng:76.94, color:"#ffd34d", faction:"soviet", cavalry:false, text:`Жетісуда ұжымдастыру мен күштеп кооперациялауға қарсы қақтығыстар жиіледі. Көптеген ауылдар Қытайға ауа көшуге мәжбүр болды.`, youtube: "https://www.youtube.com/embed/wbt0F4NrTcg"},
+    {id:17, years:"1930–1931", title:"Маңғыстаудағы халық қозғалысы", place:"Маңғыстау", lat:44.50, lng:52.00, color:"#ffd34d", faction:"soviet", cavalry:false, text:`Адайлар мен өзге рулар қатысқан наразылықтар жазалау отрядтарымен қатаң басылды.`, youtube: "https://www.youtube.com/embed/wbt0F4NrTcg"},
+    {id:18, years:"1930–1931", title:"Қордай көтерілісі", place:"Қордай асуы, Жамбыл", lat:43.03, lng:74.72, color:"#ffd34d", faction:"soviet", cavalry:false, text:`Қордай ауданында шаруалар жазалау жасақтарына қарсылық көрсетті.`, youtube: "https://www.youtube.com/embed/wbt0F4NrTcg"},
+    {id:19, years:"1930", title:"Созақ көтерілісі", place:"Созақ, Түркістан аймағы", lat:44.30, lng:68.24, color:"#ffd34d", faction:"soviet", cavalry:false, text:`Созақта халық хан сайлап, уездік орталыққа шабуыл жасады. Кейін жазалау экспедициялары аяусыз жаза қолданды.`, youtube: "https://www.youtube.com/embed/bHdzdhx0m6c"},
+    {id:20, years:"1931", title:"Шұбартау көтерілісі", place:"Шұбартау, Шығыс Қазақстан", lat:46.75, lng:81.25, color:"#ffd34d", faction:"soviet", cavalry:false, text:`Шұбартаудағы қарсылық ұзаққа созылып, бірқатар ауылдар ауа көшуге мәжбүр болды.`, youtube: "https://www.youtube.com/embed/wbt0F4NrTcg"},
+    {id:21, years:"1930", title:"Батпаққара көтерілісі", place:"Батпаққара, Қостанай", lat:50.37, lng:64.60, color:"#ffd34d", faction:"soviet", cavalry:false, text:`Батпаққарада көтерілісшілер аудан орталығын уақытша басып алып, кейін шегінуге мәжбүр болды.`, youtube: "https://www.youtube.com/embed/dsUSqPLz73A"},
+
+    // Кеңестік жүйеге қарсы қозғалыстар
+    {id:22, years:"1958", title:"Теміртау оқиғасы", place:"Теміртау", lat:50.06, lng:72.95, color:"#ff4d6d", faction:"police", cavalry:false, text:`Металлургия құрылысына ағылған жастарға тұрмыс пен жабдық жетіспеді. Тамыз айында басталған наразылық тәртіпсіздікке ұласып, күшпен басылды.`, youtube: "https://www.youtube.com/embed/qE0kq4QRHRM"},
+    {id:23, years:"1979", title:"«Неміс автономиясына» қарсы қозғалыс", place:"Целиноград (Астана)", lat:51.16, lng:71.47, color:"#ff4d6d", faction:"police", cavalry:false, text:`Маусымдағы бейбіт шеру нәтижесінде неміс автономиясын құру жоспары тоқтатылды. Бұл — орталық биліктің алғаш рет райынан қайтуының бірі болды.`, youtube: "https://www.youtube.com/embed/E24-WqlMvkY"},
+    {id:24, years:"1986", title:"Желтоқсан", place:"Алматы", lat:43.24, lng:76.94, color:"#ff4d6d", faction:"police", cavalry:false, text:`16–18 желтоқсанда жастар орталық алаңға шығып, саяси еркіндік талап етті. Бейбіт шеру күшпен таратылды. Желтоқсан — тәуелсіздікке бастар рухтың символы.`,youtube: "https://www.youtube.com/embed/iWiPCDx6r7I"},
+    {id:25, years:"1989", title:"Жаңаөзен оқиғасы", place:"Жаңаөзен", lat:43.35, lng:52.86, color:"#ff4d6d", faction:"police", cavalry:false, text:`Әлеуметтік әділетсіздік пен жұмысшылардың талаптары ескерілмей, қақтығыс орын алды. Оқиға күшпен басылды.`, youtube: "https://www.youtube.com/embed/B69ZZvbfg-A"},
+    {id:26, years:"1989", title:"Қарағанды кеншілер ереуілі", place:"Қарағанды", lat:49.80, lng:73.10, color:"#ff4d6d", faction:"police", cavalry:false, text:`Еңбек жағдайын, еңбекақы мен әлеуметтік мәселелерді жақсартуды талап еткен кең ауқымды ереуілдер өтті.`, youtube: "https://www.youtube.com/embed/BruTZITrktI"}
+  ];
+
+  // ==== КАРТА ====
+  const map = L.map('map', {zoomControl:true, scrollWheelZoom:true}).setView([48.5, 67.5], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap қатысушылары'
+  }).addTo(map);
+
+  function markerIcon(color){
+    const svg = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><circle cx='20' cy='20' r='8' fill='${color}'/><circle cx='20' cy='20' r='16' fill='${color}' opacity='.18'/></svg>`);
+    return L.icon({iconUrl:`data:image/svg+xml,${svg}`, iconSize:[28,28]});
+  }
+
+  const group = L.layerGroup().addTo(map);
+  EVENTS.forEach(ev=>{
+    const m = L.marker([ev.lat, ev.lng], {icon:markerIcon(ev.color)}).addTo(group);
+    m.bindTooltip(`${ev.years} • ${ev.title}`);
+    m.on('click', ()=> openGame(ev));
+  });
+
+  // ==== ТАЙМЛАЙН ====
+  const timeline = document.getElementById('timeline');
+EVENTS.sort((a,b)=> (a.years > b.years ? 1 : -1));
+EVENTS.forEach(ev=>{
+  const div = document.createElement('div');
+  div.className='event reveal';
+  div.innerHTML = `<div class="years">${ev.years} · ${ev.place}</div><h3>${ev.title}</h3><div style="color:#c9d6f0; font-size:14px">${ev.text}</div>`;
+  div.addEventListener('click', ()=> openGame(ev));
+  timeline.appendChild(div);
+});
+
+  // ==== МӘТІНДІК БӨЛІМ ====
+  const topics = document.getElementById('topics');
+  const longTexts = [3,4,5,6,7,8,9,10].concat([11,12]).concat([13,14,15,16,17,18,19,20,21]).concat([22,23,24,25,26]);
+  longTexts.forEach(id=>{
+    const ev = EVENTS.find(e=>e.id===id); if(!ev) return;
+    const t = document.createElement('article');
+    t.className='topic reveal';
+    t.innerHTML = `
+      <span class="badge">${ev.years}</span>
+      <span class="badge">${ev.place}</span>
+      <h3>${ev.title}</h3>
+      <p>${ev.text}</p>
+      <p><em>Тарихи мәні:</em> Азаттық санасын күшейтіп, ұлттық бірегейлік пен әділетке ұмтылысты нығайтты. Аймақтың саяси-әлеуметтік өміріне дүмпу беріп, кейінгі буынға үлгі қалдырды.</p>
+      <p style="font-size:13px; color:#b9c6e2">Картадағы нүктені немесе бұл картаны басып, тарихи мини-ойынды іске қосыңыз.</p>
+    `;
+    topics.appendChild(t);
+  });
+
+  // ==== SCROLL REVEAL ====
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target);} })
+  },{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(el=> io.observe(el));
+  // ==== ОЙЫН МЕХАНИКАСЫ (Shadow Fight стилінде) ====
+
+  const modal = document.getElementById('gameModal');
+  const gameTitle = document.getElementById('gameTitle');
+  const gameSubtitle = document.getElementById('gameSubtitle');
+  const gameHint = document.getElementById('gameHint');
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  let CURRENT=null, running=false;
+
+  let player, enemy, keys={}, loopId;
+  
+
+  function openGame(ev) {
+  CURRENT = ev; 
+  running = false; 
+  cancelAnimationFrame(loopId);
+
+  // Оқиға атауы мен кезеңін шығару
+  gameTitle.textContent = ev.title;
+  gameSubtitle.textContent = `${ev.years} · ${ev.place}`;
+
+  // Canvas-ты әуелде жасырамыз
+  const canvas = document.getElementById("gameCanvas");
+  canvas.style.display = "none";
+
+  // Бұрынғы видео болса өшіреміз
+  let oldVid = document.getElementById("eventVideo");
+  if (oldVid) oldVid.remove();
+
+  // Видео қосу (canvas тұрған жерге)
+  if (ev.youtube) {
+    let videoDiv = document.createElement("div");
+    videoDiv.id = "eventVideo";
+    videoDiv.style.textAlign = "center";
+    videoDiv.style.margin = "10px 0";
+    videoDiv.innerHTML = `
+      <iframe width="800" height="450"
+        src="${ev.youtube}"
+        title="YouTube video player"
+        frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+      </iframe>
+    `;
+    
+    canvas.parentNode.insertBefore(videoDiv, canvas); 
+  }
+
+  
+
+  modal.classList.add('active');
+
+  // Фон
+  CURRENT.era  = eraOf(ev);
+  CURRENT.bgImg = getBg(CURRENT.era);
+  if (!CURRENT.bgImg.complete) {
+    CURRENT.bgImg.onload = () => drawIntro();
+  }
+  drawIntro();
+}
+
+// Шайқас басталғанда — видеоны алып, canvas көрсетеміз
+document.getElementById('startGame').onclick = () => {
+  let oldVid = document.getElementById("eventVideo");
+  if (oldVid) oldVid.remove();
+  const canvas = document.getElementById("gameCanvas");
+  canvas.style.display = "block";
+  startBattle();
+};
+
+// Жабу батырмасы
+document.getElementById('closeGame').onclick = ()=>{
+  modal.classList.remove('active'); 
+  running=false; 
+}
+
+ // ---- Батыр класы ----
+class Fighter {
+  constructor(x, y, type, color) {
+    this.x = x; this.y = y;
+    this.type = type;
+    this.color = color;
+    this.hp = 100;
+    this.w = 40; this.h = 90;
+    this.velY = 0;
+    this.grounded = true;
+    this.dir = 1;
+    this.attacking = false;
+    this.dead = false;
+
+    this.dead = false;   // жеңілсе true болады
+    this.blood = [];     // қан бөлшектері
+  }
+
+  draw() {
+  if (this.dead) {
+    // жеңілгенде көлденең жатып қалу
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x, this.y+this.h-20, this.w, 20); // дене
+
+    // бас
+    ctx.beginPath();
+    ctx.arc(this.x+this.w/2, this.y+this.h-30, 15, 0, Math.PI*2);
+    ctx.fillStyle = "#fcd7b6";
+    ctx.fill();
+
+    // қан бөлшектері
+    this.blood.forEach(p=>{
+      ctx.fillStyle = "red";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fill();
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.2; // гравитация
+      p.r *= 0.96; // баяу кішірейеді
+    });
+    return;
+  }
+
+  // --- тірі кезде ---
+  ctx.fillStyle = this.color;
+  ctx.fillRect(this.x+6, this.y, this.w-12, this.h-25);
+
+  // бас
+  ctx.beginPath();
+  ctx.arc(this.x+this.w/2, this.y-22, 19, 0, Math.PI*2);
+  ctx.fillStyle = "#fcd7b6";
+  ctx.fill();
+  ctx.stroke();
+
+  // аяқтар
+  ctx.fillStyle = "#552";
+  ctx.fillRect(this.x+10, this.y+this.h-30, 12, 35);
+  ctx.fillRect(this.x+this.w-22, this.y+this.h-30, 12, 35);
+
+  // қолдар
+  ctx.fillStyle = this.color;
+  ctx.fillRect(this.x-10, this.y+20, 10, 35);
+  ctx.fillRect(this.x+this.w, this.y+20, 10, 35);
+
+  // қылыш
+  if(this.attacking){
+    ctx.strokeStyle="silver"; ctx.lineWidth=6;
+    ctx.beginPath();
+    ctx.moveTo(this.x+this.w/2, this.y+20);
+    ctx.lineTo(this.x+this.w/2 + this.dir*50, this.y-20);
+    ctx.stroke();
+  }
+}
+
+  attack(type, target){
+    if(this.dead) return; // өлі болса шабуыл жасамайды
+    this.attacking = true;
+    setTimeout(()=>this.attacking=false, 200);
+
+    if(Math.abs(this.x - target.x) < 70){
+      let dmg = type==="punch"? 6 : type==="sword"? 12 : 20;
+      target.hp -= dmg;
+      if(target.hp <= 0) target.die();
+    }
+  }
+
+  die(){
+    this.dead = true;
+    // қан бөлшектерін жасау
+    for(let i=0;i<30;i++){
+      this.blood.push({
+        x:this.x+this.w/2,
+        y:this.y+this.h/2,
+        r:Math.random()*6+3,
+        vx:(Math.random()-0.5)*6,
+        vy:Math.random()*-4
+      });
+    }
+  }
+}
+
+
+  // ---- Интро ----
+  function drawIntro(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = "#123";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = "#eee";
+    ctx.font="28px Unbounded";
+    ctx.fillText(CURRENT.title, 40, 80);
+    ctx.font="18px Inter";
+    ctx.fillText(`${CURRENT.years} • ${CURRENT.place}`, 40, 110);
+    ctx.fillStyle="#48f5c5";
+    ctx.fillText("⚔️ «Соғыс басталсын» батырмасын басыңыз", 40, 160);
+  }
+
+  // ---- Бастау ----
+  function startBattle(){
+  running = true;
+  player = new Fighter(120, 380, "player", "#2a5"); // жасыл жауынгер
+  enemy  = new Fighter(740, 380, "enemy", "#c33");  // қызыл жауынгер
+  loop();
+}
+
+
+  // ---- Артқы фон ----
+// фон суретін жүктеу
+const bgImage = new Image();
+bgImage.src = "image.png"; // сурет файлының жолы
+
+function drawBackground(){
+  const img = CURRENT && CURRENT.bgImg;
+  if (img && img.complete) {
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  } else {
+    ctx.fillStyle="#234";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+  }
+  // жер сызығы
+  ctx.fillStyle="rgba(0,0,0,0.25)";
+  ctx.fillRect(0,470,canvas.width,50);
+}
+
+// 4 кезең үшін фон URL-дары (өз суреттеріңмен ауыстыра бер)
+const BG_URLS = {
+  "XVIII–XIX": "https://images.ctfassets.net/hrltx12pl8hq/6HbHf985qIM5gyvPGx729C/02d650fd62d043f124675170b9778b1d/war-battles-images.jpg?fit=fill&w=600&h=400",
+  "1916":      "https://png.pngtree.com/thumb_back/fh260/background/20230516/pngtree-the-streets-in-berlin-are-wiped-out-by-the-battle-that-image_2576876.jpg",
+  "1929–1931": "https://avatars.mds.yandex.net/i?id=62c817fd6a11f49b234347c4dd8f6fae7d1fa9f5-3631034-images-thumbs&n=13",
+  "Кеңестік":  "https://img.goodfon.ru/wallpaper/big/7/27/tank-tanki-t-34-85-velikaia-otechestvennaia-voina-sssr-art-s.webp"
+};
+
+
+// Оқиғаны pill-кезеңге жіктеу
+function eraOf(ev){
+  const y = ev.years;
+
+  // XVIII–XIX ғ. (1700–1899)
+  if (y.match(/17|18[0-9]{2}/)) return "XVIII–XIX";
+  if (y.includes("1847") || y.includes("1858") || y.includes("1868") || y.includes("1870"))
+    return "XVIII–XIX";
+
+  // 1916 ж.
+  if (y.includes("1916")) return "1916";
+
+  // 1929–1931 жж.
+  if (y.includes("1929") || y.includes("1930") || y.includes("1931"))
+    return "1929–1931";
+
+  // Кеңестік кезең (1958–1989)
+  return "Кеңестік";
+}
+
+
+// Фондарды кэштеу
+const bgCache = {};
+function getBg(era){
+  if (bgCache[era]) return bgCache[era];
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.src = BG_URLS[era];
+  bgCache[era] = img;
+  return img;
+}
+
+
+  // ---- HP жолақтары ----
+  function drawHealthBars(){
+    ctx.fillStyle="red";
+    ctx.fillRect(40,30,300,20);
+    ctx.fillRect(canvas.width-340,30,300,20);
+    ctx.fillStyle="lime";
+    ctx.fillRect(40,30, 3*Math.max(0, player.hp), 20);
+ctx.fillRect(canvas.width-340,30, 3*Math.max(0, enemy.hp), 20);
+
+  }
+
+  // ---- Негізгі цикл ----
+  function loop(){
+    if(!running){drawIntro(); return;}
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    drawBackground();
+    drawHealthBars();
+
+    // Player controls
+    if(keys["ArrowLeft"]) {player.x -= 4; player.dir=-1;}
+    if(keys["ArrowRight"]) {player.x += 4; player.dir=1;}
+    if(keys["ArrowUp"] && player.grounded){player.velY=-12; player.grounded=false;}
+
+    // Гравитация
+    player.y += player.velY;
+    player.velY += 0.6;
+    if(player.y>=380){player.y=380; player.velY=0; player.grounded=true;}
+
+    // Enemy AI
+  // Негізгі цикл ішіндегі Enemy AI блокты ауыстырыңыз:
+if (enemy.x > player.x + 55) { enemy.x -= 2; enemy.dir = -1; }
+else if (enemy.x < player.x - 55) { enemy.x += 2; enemy.dir =  1; }
+else {
+  // Жақындасқанда анда-санда ұрсын (түрлі соққылар)
+  if (Math.random() < 0.03) {
+    const moves = ["punch","sword","combo"];
+    enemy.attack(moves[Math.floor(Math.random()*moves.length)], player);
+  }
+}
+
+
+    player.draw();
+    enemy.draw();
+
+    // check end
+    if(player.hp<=0 || enemy.hp<=0){
+      running=false;
+      ctx.fillStyle="white"; ctx.font="28px Unbounded";
+      ctx.fillText(player.hp<=0? "Сіз жеңілдіңіз..." : "ЖЕҢІС!", 380,200);
+      return;
+    }
+
+    loopId=requestAnimationFrame(loop);
+  }
+
+  // ---- Controls ----
+  document.addEventListener("keydown", e=>{
+    keys[e.key]=true;
+    if(e.key==="a"||e.key==="A") player.attack("punch", enemy);
+    if(e.key==="s"||e.key==="S") player.attack("sword", enemy);
+    if(e.key==="d"||e.key==="D") player.attack("combo", enemy);
+    
+  });
+  document.addEventListener("keyup", e=>{keys[e.key]=false;});
+
+  // ESC жабу
+  document.addEventListener('keydown', (e)=>{
+    if(e.key==='Escape' && modal.classList.contains('active')){
+      modal.classList.remove('active'); running=false;
+    }
+  });
+
+</script>
+</body>
+</html>
